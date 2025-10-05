@@ -28,20 +28,7 @@ aws configure
 
 ---
 
-## 1) Build & Test the Docker Image Locally
-
-From the directory containing your `Dockerfile`:
-
-```bash
-docker build -t claude-ecs:latest .
-docker run --rm -p 8080:8080 claude-ecs:latest
-```
-
-Visit `http://localhost:8080` to confirm the container starts, then `Ctrl+C` to stop.
-
----
-
-## 2) Set Environment Variables
+## 1) Set Environment Variables
 
 ```bash
 export AWS_REGION=us-west-2
@@ -53,7 +40,7 @@ export REPO_NAME=claudeproject
 
 ---
 
-## 3) Create/Login to ECR
+## 2) Create/Login to ECR
 
 Create (idempotently) and login:
 
@@ -76,10 +63,10 @@ aws ecr describe-repositories \
 
 ---
 
-## 4) Tag & Push the Image to ECR (single-arch, typical x86_64 build)
+## 3) Tag & Push the Image to ECR (single-arch, typical x86_64 build)
 
 ```bash
-docker tag claude-ecs:latest "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:latest"
+docker tag claudeproject:latest "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:latest"
 docker images | grep "${REPO_NAME}"
 docker push "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:latest"
 
@@ -90,42 +77,32 @@ export TF_IMAGE_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NA
 
 ---
 
-## 4b) **Apple Silicon (M-chip) — Build & Push a Multi-arch Image (amd64 + arm64)**
+## 3b) **Apple Silicon (M-chip) — Build & Push a Multi-arch Image (amd64 + arm64)**
 
 This ensures your image can run on both amd64 and arm64 nodes.
 
 ```bash
-# 0) Vars
-export AWS_REGION=us-west-2
-export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export REPO_NAME=claudeproject
-export ECR_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:latest"
-
-# 1) Login to ECR
-aws ecr get-login-password --region "${AWS_REGION}" \
-| docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-
-# 2) Ensure buildx is ready
+# 1) Ensure buildx is ready
 docker buildx create --name multi --use 2>/dev/null || docker buildx use multi
 docker buildx inspect --bootstrap
 
-# 3) Build and PUSH a multi-arch image (amd64 + arm64)
+# 2) Build and PUSH a multi-arch image (amd64 + arm64)
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   -t "${ECR_URI}" \
   --push .
 
-# 4) (Optional) Verify the manifest has both platforms
+# 3) (Optional) Verify the manifest has both platforms
 docker buildx imagetools inspect "${ECR_URI}"
 
-# 5) Kick ECS to pull the new image
+# 4) Kick ECS to pull the new image
 aws ecs update-service \
   --cluster claudeproject-cluster \
   --service claudeproject-svc \
   --force-new-deployment \
   --region "${AWS_REGION}"
 
-# 6) Export for Terraform
+# 5) Export for Terraform
 export TF_IMAGE_URL="${ECR_URI}"
 ```
 
@@ -133,7 +110,7 @@ export TF_IMAGE_URL="${ECR_URI}"
 
 ---
 
-## 5) Provision Infrastructure with Terraform
+## 4) Provision Infrastructure with Terraform
 
 ```bash
 terraform init
@@ -153,7 +130,7 @@ terraform apply -auto-approve \
 
 ---
 
-## 6) Discover the ALB URL & Test
+## 5) Discover the ALB URL & Test
 
 Prefer Terraform outputs:
 
@@ -173,7 +150,7 @@ If your app exposes a health endpoint, try `.../health`.
 
 ---
 
-## 6b) Verify ECS Service Status (desired vs running)
+## 5b) Verify ECS Service Status (desired vs running)
 
 Check your service counts, deployments, and recent events:
 
@@ -198,7 +175,7 @@ aws ecs describe-services \
 
 ---
 
-## 6c) Start or Restart the ECS Service
+## 5c) Start or Restart the ECS Service
 
 Scale from zero or force a new deployment:
 
@@ -214,7 +191,7 @@ aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --force-new-dep
 
 ---
 
-## 7) Console Checks (ECR & ECS)
+## 6) Console Checks (ECR & ECS)
 
 - **ECR**: Console → _Elastic Container Registry_ → _Repositories_.
   Ensure the **region** matches `AWS_REGION` (e.g., **us-west-2**). If you don’t see the repo in another region like **us-east-2**, switch regions.
@@ -222,7 +199,7 @@ aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --force-new-dep
 
 ---
 
-## 8) Troubleshooting
+## 7) Troubleshooting
 
 - **Wrong region in console** → Switch to _US West (Oregon) – us-west-2_ if that’s your `AWS_REGION`.
 - **ECR login fails** → Re-run login; confirm region/account; verify IAM permissions.
@@ -248,7 +225,7 @@ If anything beyond this is unclear, I don’t know.
 
 ---
 
-## 9) Cleanup
+## 8) Cleanup
 
 Destroy infra:
 
@@ -270,7 +247,7 @@ aws ecr delete-repository --repository-name "$REPO_NAME" --region "$AWS_REGION"
 
 ---
 
-## 10) Quick Command Reference
+## 9) Quick Command Reference
 
 ```bash
 docker --version
@@ -279,8 +256,8 @@ aws --version
 aws configure
 
 # Local build & run
-docker build -t claude-ecs:latest .
-docker run --rm -p 8080:8080 claude-ecs:latest
+docker build -t claudeproject:latest .
+docker run --rm -p 8080:8080 claudeproject:latest
 
 # Core env
 export AWS_REGION=us-west-2
@@ -293,7 +270,7 @@ aws ecr get-login-password --region "$AWS_REGION" \
 | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 
 # Single-arch push (typical x86_64 build)
-docker tag claude-ecs:latest "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:latest"
+docker tag claudeproject:latest "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:latest"
 docker images | grep "${REPO_NAME}"
 docker push "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:latest"
 export TF_IMAGE_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:latest"
