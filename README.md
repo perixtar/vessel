@@ -26,8 +26,6 @@ aws --version
 aws configure
 ```
 
-````
-
 ---
 
 ## 1) Build & Test the Docker Image Locally
@@ -362,4 +360,4 @@ SERVICE=$(terraform output -raw ecs_service_name)
 
 If you want me to also add a short “Why multi-arch matters on Apple Silicon” sidebar with common errors (“no matching manifest”, “exec format error”), I can—otherwise this should be ready to paste. If anything else here is uncertain, I don’t know.
 
-````
+```
