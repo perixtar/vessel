@@ -1,4 +1,8 @@
-# Deploy a Dockerized Service to AWS ECS (Fargate) behind an ALB with Terraform
+# Vessel
+
+Vessel lets you run Claude Code CLI in your self-hosting cloud setup.
+
+---
 
 This README walks you through:
 
@@ -136,14 +140,21 @@ Prefer Terraform outputs:
 
 ```bash
 terraform output
-# e.g. alb_dns_name = "claudeproject-alb-963174945.us-west-2.elb.amazonaws.com"
+# e.g. alb_dns_name = "claudeproject-alb-1234567.us-west-2.elb.amazonaws.com"
 ```
 
 Or set manually if you already know it:
 
 ```bash
-export ALB_URL="claudeproject-alb-963174945.us-west-2.elb.amazonaws.com"
+export ALB_URL="<url returned from terraform>"
 curl -s "http://${ALB_URL}/"
+```
+
+```bash
+# Test a simple prompt
+curl -sS -X POST "$ALB_URL/ask" -H 'Content-Type: application/json' \
+  -d '{"prompt":"Say hello from ECS","timeoutMs":50000}' | jq
+
 ```
 
 If your app exposes a health endpoint, try `.../health`.
@@ -309,7 +320,7 @@ aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --desired-count
 aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --force-new-deployment --region "$REGION"
 
 # ALB URL test
-export ALB_URL="claudeproject-alb-963174945.us-west-2.elb.amazonaws.com"
+export ALB_URL="<url returned from terraform>"
 curl -s "http://${ALB_URL}/"
 ```
 
