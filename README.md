@@ -1,5 +1,7 @@
 # Vessel
 
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Vessel lets you run Claude Code CLI in your self-hosting cloud setup.
 
 ---
@@ -45,6 +47,13 @@ aws configure
 ---
 
 ## 1) Set Environment Variables
+
+Create a `.env` file by copying `.env.template` and add your API keys and secrets as needed:
+
+```bash
+cp .env.template .env
+# Edit .env and fill in your API keys and other required values
+```
 
 ```bash
 export AWS_REGION=us-west-2
