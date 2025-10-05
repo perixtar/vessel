@@ -34,7 +34,7 @@ variable "desired_count" {
 
 variable "image_url" {
   type        = string
-  description = "ECR image URI, e.g. 123456789012.dkr.ecr.us-west-2.amazonaws.com/claudeproject:latest"
+  description = "ECR image URI, e.g. 1234567.dkr.ecr.us-west-2.amazonaws.com/claudeproject:latest"
 }
 
 # pass via env (TF_VAR_anthropic_api_key)
