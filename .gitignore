@@ -1,3 +1,5 @@
 .env
 node_modules
 .terraform/
+AWSCLIV2.pkg
+terraform.tfstate*
