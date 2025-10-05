@@ -28,6 +28,18 @@ docker --version
 terraform --version
 aws --version
 aws configure
+# Prompts:
+# AWS Access Key ID [None]: AKIAxxxxxxxxxxxxxxxx
+# AWS Secret Access Key [None]: <paste-your-secret-key>
+# Default region name [None]: us-west-2
+# Default output format [None]: json
+
+# Step-by-step guide to finding or creating your Access Key ID:
+# 1. Log in to the AWS Console: with your account or user credentials.
+# 2. Click your account name: or profile in the top-right corner of the console.
+# 3. Select "Security Credentials": from the drop-down menu.
+# 4. Scroll down: to find the "Access Keys" section.
+# 5. Click to expand: the "Access Keys (Access Key ID and Secret Access Key)" option to view your existing keys.
 ```
 
 ---
