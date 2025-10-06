@@ -30,13 +30,14 @@ RUN npm install -g @anthropic-ai/claude-code@2.0.8 \
 # Copy compiled JS
 COPY --from=builder /app/dist ./dist
 
-# Root user + stable HOME
-USER root
-ENV HOME=/root
+# Clean workspace to avoid CLI scans/prompts
+RUN mkdir -p /workspace /app && chown -R node:node /workspace /app
+
+# switch away from root
+USER node
+ENV HOME=/home/node
 ENV PORT=8080
 
-# Clean workspace to avoid CLI scans/prompts
-RUN mkdir -p /workspace
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \

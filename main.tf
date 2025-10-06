@@ -37,11 +37,16 @@ variable "image_url" {
   description = "ECR image URI, e.g. 1234567.dkr.ecr.us-west-2.amazonaws.com/claudeproject:latest"
 }
 
-# pass via env (TF_VAR_anthropic_api_key)
+# Anthropic key passed via env (TF_VAR_anthropic_api_key)
 variable "anthropic_api_key" {
   type        = string
   sensitive   = true
   description = "Anthropic API key (set as TF_VAR_anthropic_api_key)"
+}
+
+variable "github_secret_name" {
+  type    = string
+  default = "github_token"
 }
 
 ########################
@@ -77,12 +82,10 @@ resource "aws_subnet" "public_b" {
 
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
-
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw.id
   }
-
   tags = { Name = "${var.project_name}-public-rt" }
 }
 
@@ -158,7 +161,7 @@ resource "aws_lb_target_group" "tg" {
 
   health_check {
     path              = "/"
-    port              = "traffic-port"   # follow container traffic port automatically
+    port              = "traffic-port"
     matcher           = "200-399"
     interval          = 20
     timeout           = 5
@@ -170,7 +173,6 @@ resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.app.arn
   port              = 80
   protocol          = "HTTP"
-
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.tg.arn
@@ -183,7 +185,6 @@ resource "aws_lb_listener" "http" {
 data "aws_iam_policy_document" "assume_task_exec" {
   statement {
     actions = ["sts:AssumeRole"]
-
     principals {
       type        = "Service"
       identifiers = ["ecs-tasks.amazonaws.com"]
@@ -215,11 +216,15 @@ resource "aws_secretsmanager_secret_version" "anthropic_key_v" {
   secret_string = var.anthropic_api_key
 }
 
-# Allow ECS Task Execution Role to read the secret
+# Allow ECS Task Execution Role to read the secrets
 data "aws_iam_policy_document" "task_exec_secrets" {
   statement {
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.anthropic_key.arn]
+    # Use the *secret* ARNs (not the version ARN)
+    resources = [
+      aws_secretsmanager_secret.anthropic_key.arn,
+      data.aws_secretsmanager_secret.github.arn
+    ]
   }
 }
 
@@ -244,15 +249,15 @@ resource "aws_cloudwatch_log_group" "app" {
 ########################
 # ECS Cluster + Task + Service
 ########################
-# IAM role assumed by the *task* (your app code inside the container)
+# Task role your app runs as (kept; needed for ECS Exec etc.)
 resource "aws_iam_role" "task_role" {
   name = "${var.project_name}-task-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
-      Effect = "Allow",
+      Effect    = "Allow",
       Principal = { Service = "ecs-tasks.amazonaws.com" },
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 }
@@ -267,6 +272,14 @@ resource "aws_ecs_cluster" "this" {
   name = "${var.project_name}-cluster"
 }
 
+# read existing GitHub token secret
+data "aws_secretsmanager_secret" "github" {
+  name = var.github_secret_name
+}
+data "aws_secretsmanager_secret_version" "github" {
+  secret_id = data.aws_secretsmanager_secret.github.id
+}
+
 resource "aws_ecs_task_definition" "app" {
   family                   = "${var.project_name}-task"
   network_mode             = "awsvpc"
@@ -276,22 +289,20 @@ resource "aws_ecs_task_definition" "app" {
   task_role_arn            = aws_iam_role.task_role.arn
   execution_role_arn       = aws_iam_role.task_execution_role.arn
 
-  # If your pushed image is ARM64-only, uncomment runtime_platform below
-  # runtime_platform {
-  #   cpu_architecture        = "ARM64"
-  #   operating_system_family = "LINUX"
-  # }
+  # No EFS volumes here
 
   container_definitions = jsonencode([
     {
       name      = "app",
       image     = var.image_url,
       essential = true,
+
       portMappings = [{
         containerPort = tonumber(var.container_port),
         hostPort      = tonumber(var.container_port),
         protocol      = "tcp"
       }],
+
       logConfiguration = {
         logDriver = "awslogs",
         options = {
@@ -300,13 +311,20 @@ resource "aws_ecs_task_definition" "app" {
           awslogs-stream-prefix = "ecs"
         }
       },
-      # Inject the secret as an env var at runtime
+
+      # Secrets: Anthropic + GitHub
       secrets = [
         {
           name      = "ANTHROPIC_API_KEY",
           valueFrom = aws_secretsmanager_secret.anthropic_key.arn
+        },
+        {
+          name      = "GITHUB_TOKEN",
+          valueFrom = data.aws_secretsmanager_secret_version.github.arn
         }
       ],
+
+      # Env: port
       environment = [
         { name = "PORT", value = tostring(var.container_port) }
       ]
@@ -315,11 +333,11 @@ resource "aws_ecs_task_definition" "app" {
 }
 
 resource "aws_ecs_service" "app" {
-  name            = "${var.project_name}-svc"
-  cluster         = aws_ecs_cluster.this.id
-  task_definition = aws_ecs_task_definition.app.arn
-  desired_count   = var.desired_count
-  launch_type     = "FARGATE"
+  name                   = "${var.project_name}-svc"
+  cluster                = aws_ecs_cluster.this.id
+  task_definition        = aws_ecs_task_definition.app.arn
+  desired_count          = var.desired_count
+  launch_type            = "FARGATE"
   enable_execute_command = true
 
   network_configuration {
@@ -334,9 +352,13 @@ resource "aws_ecs_service" "app" {
     container_port   = var.container_port
   }
 
+  # No EFS depends_on needed
   depends_on = [aws_lb_listener.http]
 }
 
+########################
+# Outputs
+########################
 output "alb_dns_name" {
   value = aws_lb.app.dns_name
 }

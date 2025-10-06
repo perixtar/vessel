@@ -120,14 +120,7 @@ docker buildx build \
 # 3) (Optional) Verify the manifest has both platforms
 docker buildx imagetools inspect "${ECR_URI}"
 
-# 4) Kick ECS to pull the new image
-aws ecs update-service \
-  --cluster claudeproject-cluster \
-  --service claudeproject-svc \
-  --force-new-deployment \
-  --region "${AWS_REGION}"
-
-# 5) Export for Terraform
+# 4) Export for Terraform
 export TF_IMAGE_URL="${ECR_URI}"
 ```
 
@@ -152,6 +145,16 @@ terraform apply -auto-approve \
 ```
 
 > Your Terraform should create: **ECS cluster**, **task definition** (using `image_url`), **service**, **ALB + listener + target group**, **CloudWatch Log Group**, and required **IAM** roles.
+
+Kick ECS to pull the new image
+
+```bash
+aws ecs update-service \
+  --cluster claudeproject-cluster \
+  --service claudeproject-svc \
+  --force-new-deployment \
+  --region "${AWS_REGION}"
+```
 
 ---
 
